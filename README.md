@@ -1,4 +1,6 @@
-# LibRMCS
+# LibRMCS 
+## 此版本适用于ATRM
+*需搭配适用于ATRM的rmcs-slave*
 
 librmcs 是 [无下位机控制系统 RMCS（RoboMaster Control System）](https://github.com/Alliance-Algorithm/RMCS) 的一个高度精简版本。
 它移除了所有可移除的依赖，只保留核心通讯部分。
