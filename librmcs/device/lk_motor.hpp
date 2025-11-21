@@ -14,7 +14,7 @@ namespace librmcs::device {
 
 class LkMotor {
 public:
-    enum class Type : uint8_t { MG5010E_I10, MG4010E_I10 };
+    enum class Type : uint8_t { MG5010E_I10, MG4010E_I10, MG6012E_I8, MG4005E_I10 };
 
     struct Config {
         explicit Config(Type type) {
@@ -69,6 +69,20 @@ public:
             torque_constant = 0.07;
             reduction_ratio = 10.0;
             max_torque_ = 4.5;
+            break;
+        case Type::MG6012E_I8:
+            raw_angle_max_ = 65535;
+            current_max = 33.0;
+            torque_constant = 1.09;
+            reduction_ratio = 8.0;
+            max_torque_ = 16.0;
+            break;
+        case Type::MG4005E_I10:
+            raw_angle_max_ = 65535;
+            current_max = 33.0;
+            torque_constant = 0.06;
+            reduction_ratio = 10.0;
+            max_torque_ = 2.5;
             break;
         }
 
@@ -272,7 +286,7 @@ public:
             uint8_t placeholder{};
             uint16_t velocity_limit = 0;
             int32_t angle;
-        } command alignas(uint64_t){.angle = to_command_angle(control_angle)});
+        } command alignas(uint64_t){.angle = to_absolute_command_angle(control_angle)});
 
         if (!std::isnan(velocity_limit)) {
             command.id = 0xA4;
@@ -280,8 +294,39 @@ public:
             velocity_limit =
                 velocity_to_command_velocity_coefficient_ * (1.0 / 100.0) * velocity_limit;
             velocity_limit = std::round(std::clamp<double>(
-                    velocity_limit, std::numeric_limits<uint16_t>::min(),
-                    std::numeric_limits<uint16_t>::max()));
+                velocity_limit, std::numeric_limits<uint16_t>::min(),
+                std::numeric_limits<uint16_t>::max()));
+            command.velocity_limit = static_cast<uint16_t>(velocity_limit);
+        }
+
+        return std::bit_cast<uint64_t>(command);
+    }
+
+    uint64_t generate_angle_shift_command(
+        double control_shift_angle, double velocity_limit = nan_) const {
+        if (std::isnan(control_shift_angle))
+            return generate_disable_command();
+
+        /// @param angle The actual position corresponds to 0.01 deg/LSB, meaning 36000
+        /// represents 360 degrees, and the motor direction of rotation is determined by
+        /// the sign of this parameter.
+        /// @param velocity_limit The maximum speed limit for motor rotation, corresponding to an
+        /// actual speed of 1 dps/LSB, meaning 360 represents 360 dps.
+        PACKED_STRUCT({
+            uint8_t id = 0xA7;
+            uint8_t placeholder{};
+            uint16_t velocity_limit = 0;
+            int32_t angle;
+        } command alignas(uint64_t){.angle = to_command_angle(control_shift_angle)});
+
+        if (!std::isnan(velocity_limit)) {
+            command.id = 0xA8;
+
+            velocity_limit =
+                velocity_to_command_velocity_coefficient_ * (1.0 / 100.0) * velocity_limit;
+            velocity_limit = std::round(std::clamp<double>(
+                velocity_limit, std::numeric_limits<uint16_t>::min(),
+                std::numeric_limits<uint16_t>::max()));
             command.velocity_limit = static_cast<uint16_t>(velocity_limit);
         }
 
@@ -305,7 +350,18 @@ private:
     int32_t to_command_angle(double angle) const {
         angle = angle_to_command_angle_coefficient_ * angle;
         angle = std::round(std::clamp<double>(
-                angle, std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()));
+            angle, std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()));
+        return static_cast<int32_t>(angle);
+    }
+
+    int32_t to_absolute_command_angle(double angle) const {
+        angle = angle_to_command_angle_coefficient_ * angle;
+        angle -= std::abs(angle_to_command_angle_coefficient_)
+               * (((raw_angle_max_ - static_cast<double>(encoder_zero_point_)) / raw_angle_max_) * 2
+                  * std::numbers::pi);
+        angle = std::round(std::clamp<double>(
+            angle, std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()));
+
         return static_cast<int32_t>(angle);
     }
 
