@@ -133,8 +133,7 @@ public:
         if (last_error_msg_ == DmMotorErrorMsg::DISABLE) {
             return 0xfcffffffffffffff;
         } else if (last_error_msg_ == DmMotorErrorMsg::COMMUNICATION_ERROR) {
-            // return 0xfbffffffffffffff;
-            return 0;
+            return 0xfbffffffffffffff;
         }
 
         control_velocity = std::clamp(control_velocity, -30.0f, 30.0f);
