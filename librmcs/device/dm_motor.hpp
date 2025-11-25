@@ -69,7 +69,7 @@ public:
         if (encoder_zero_point_ < 0)
             encoder_zero_point_ += raw_angle_max_;
 
-        reversed_ = config.reversed ? -1 : 1;
+        reversed_ = config.reversed;
 
         last_raw_angle_ = 0;
         multi_turn_angle_enabled_ = config.multi_turn_angle_enabled;
@@ -99,7 +99,10 @@ public:
             calibrated_raw_angle = (raw_angle_max_ - calibrated_raw_angle);
 
         // if (!multi_turn_angle_enabled_) {
-        angle_ = static_cast<double>(calibrated_raw_angle % 16384) / 16384.0 * 2 * std::numbers::pi;
+
+        // MOTOR PMAX SET TO 25.1327
+        angle_ =
+            static_cast<double>(calibrated_raw_angle & 0x1FFF) / 8192.0 * 2 * std::numbers::pi;
 
         // } else {
         //     auto diff = (calibrated_raw_angle - angle_multi_turn_) % raw_angle_max_;
