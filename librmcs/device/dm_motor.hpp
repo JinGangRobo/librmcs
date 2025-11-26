@@ -98,21 +98,20 @@ public:
         if (reversed_)
             calibrated_raw_angle = (raw_angle_max_ - calibrated_raw_angle);
 
-        // if (!multi_turn_angle_enabled_) {
-
-        // MOTOR PMAX SET TO 25.1327
-        angle_ =
-            static_cast<double>(calibrated_raw_angle & 0x1FFF) / 8192.0 * 2 * std::numbers::pi;
-
-        // } else {
-        //     auto diff = (calibrated_raw_angle - angle_multi_turn_) % raw_angle_max_;
-        //     if (diff <= -raw_angle_max_ / 2)
-        //         diff += raw_angle_max_;
-        //     else if (diff > raw_angle_max_ / 2)
-        //         diff -= raw_angle_max_;
-        //     angle_multi_turn_ += diff;
-        //     angle_ = raw_angle_to_angle_coefficient_ * static_cast<double>(angle_multi_turn_);
-        // }
+        // TODO: BETTER COEFFICIENT HANDLING FOR DIFFERENT MOTORS
+        if (!multi_turn_angle_enabled_) {
+            // MOTOR PMAX SET TO 25.1327
+            angle_ =
+                static_cast<double>(calibrated_raw_angle & 0x1FFF) / 8192.0 * 2 * std::numbers::pi;
+        } else {
+            auto diff = (calibrated_raw_angle - angle_multi_turn_) % raw_angle_max_;
+            if (diff <= -raw_angle_max_ / 2)
+                diff += raw_angle_max_;
+            else if (diff > raw_angle_max_ / 2)
+                diff -= raw_angle_max_;
+            angle_multi_turn_ += diff;
+            angle_ = static_cast<double>(angle_multi_turn_) / 8192.0 * 2 * std::numbers::pi;
+        }
         last_raw_angle_ = raw_angle;
 
         const uint16_t vel_raw = (static_cast<uint16_t>(feedback.vel_high) << 4)
