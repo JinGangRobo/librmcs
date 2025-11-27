@@ -139,7 +139,8 @@ public:
         }
 
         control_velocity = std::clamp(control_velocity, -30.0f, 30.0f);
-        utility::le_int32_t command = std::bit_cast<int32_t>(control_velocity);
+        utility::le_int32_t command =
+            std::bit_cast<int32_t>((reversed_ ? -1.0f : 1.0f) * control_velocity);
 
         return std::bit_cast<uint32_t>(command);
     }
