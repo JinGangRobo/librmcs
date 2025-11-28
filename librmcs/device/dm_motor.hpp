@@ -8,8 +8,6 @@
 #include <cstdint>
 #include <numbers>
 
-#include "../utility/endian_promise.hpp"
-
 namespace librmcs::device {
 
 class DmMotor {
@@ -82,7 +80,6 @@ public:
         const auto feedback =
             std::bit_cast<DmMotorFeedback>(can_data_.load(std::memory_order::relaxed));
 
-        // uint8_t motor_id = feedback.id_err & 0x0F;
         last_error_msg_ = static_cast<DmMotorErrorMsg>((feedback.id_err >> 4) & 0x0F);
 
         // Temperature unit: celsius
@@ -126,7 +123,7 @@ public:
         torque_ = ((static_cast<float>(torque_raw) - 2048.0f) / 4096.0f) * 20.0f;
     }
 
-    uint64_t generate_command(float control_velocity) const {
+    uint64_t generate_velocity_command(double control_velocity) const {
         if (std::isnan(control_velocity)) {
             return 0;
         }
@@ -138,11 +135,23 @@ public:
             return 0xfbffffffffffffff;
         }
 
-        control_velocity = std::clamp(control_velocity, -30.0f, 30.0f);
-        utility::le_int32_t command =
-            std::bit_cast<int32_t>((reversed_ ? -1.0f : 1.0f) * control_velocity);
+        return to_dm_mit_control_command(
+            0.0f, (reversed_ ? -1.0f : 1.0f) * float(control_velocity), 0.0f, 0.1f, 0);
+    }
 
-        return std::bit_cast<uint32_t>(command);
+    uint64_t generate_torque_command(double control_torque) const {
+        if (std::isnan(control_torque)) {
+            return 0;
+        }
+
+        // TODO: BETTER HANDLING OF ERROR STATES
+        if (last_error_msg_ == DmMotorErrorMsg::DISABLE) {
+            return 0xfcffffffffffffff;
+        } else if (last_error_msg_ == DmMotorErrorMsg::COMMUNICATION_ERROR) {
+            return 0xfbffffffffffffff;
+        }
+        return to_dm_mit_control_command(
+            0.0f, 0.0f, 0.0f, 0.0f, (reversed_ ? -1.0f : 1.0f) * float(control_torque));
     }
 
     int calibrate_zero_point() {
@@ -161,6 +170,51 @@ public:
     DmMotorErrorMsg last_error_msg() const { return last_error_msg_; }
 
 private:
+    static constexpr float P_MIN = -25.1327f;
+    static constexpr float P_MAX = 25.1327f;
+    static constexpr float V_MIN = -30.0f;
+    static constexpr float V_MAX = 30.0f;
+    static constexpr float KP_MIN = 0.0f;
+    static constexpr float KP_MAX = 500.0f;
+    static constexpr float KD_MIN = 0.0f;
+    static constexpr float KD_MAX = 5.0f;
+    static constexpr float T_MIN = -10.0f;
+    static constexpr float T_MAX = 10.0f;
+
+    static uint16_t float_to_uint(float x, float x_min, float x_max, int bits) {
+        float span = x_max - x_min;
+        if (span <= 0)
+            return 0;
+        float normalized = (x - x_min) / span;
+        normalized = std::clamp(normalized, 0.0f, 1.0f);
+        return static_cast<uint16_t>(normalized * static_cast<float>((1 << bits) - 1));
+    }
+
+    static uint64_t
+        to_dm_mit_control_command(float pos, float vel, float kp, float kd, float torq) {
+        uint16_t pos_tmp = float_to_uint(pos, P_MIN, P_MAX, 16);
+        uint16_t vel_tmp = float_to_uint(vel, V_MIN, V_MAX, 12);
+        uint16_t kp_tmp = float_to_uint(kp, KP_MIN, KP_MAX, 12);
+        uint16_t kd_tmp = float_to_uint(kd, KD_MIN, KD_MAX, 12);
+        uint16_t tor_tmp = float_to_uint(torq, T_MIN, T_MAX, 12);
+
+        uint8_t data[8];
+        data[0] = (pos_tmp >> 8);
+        data[1] = pos_tmp;
+        data[2] = (vel_tmp >> 4);
+        data[3] = ((vel_tmp & 0xF) << 4) | (kp_tmp >> 8);
+        data[4] = kp_tmp;
+        data[5] = (kd_tmp >> 4);
+        data[6] = ((kd_tmp & 0xF) << 4) | (tor_tmp >> 8);
+        data[7] = tor_tmp;
+
+        uint64_t result = 0;
+        for (int i = 0; i < 8; ++i) {
+            result |= static_cast<uint64_t>(data[i]) << (i * 8);
+        }
+        return result;
+    }
+
     struct alignas(uint64_t) DmMotorFeedback {
         uint8_t id_err;                               // D[0]: ID|ERR<<4
         uint8_t pos_high;                             // D[1]: POS[15:8]
