@@ -125,7 +125,7 @@ public:
 
     uint64_t generate_velocity_command(double control_velocity) const {
         if (std::isnan(control_velocity)) {
-            return 0;
+            control_velocity = 0;
         }
 
         // TODO: BETTER HANDLING OF ERROR STATES
@@ -141,7 +141,7 @@ public:
 
     uint64_t generate_torque_command(double control_torque) const {
         if (std::isnan(control_torque)) {
-            return 0;
+            control_torque = 0;
         }
 
         // TODO: BETTER HANDLING OF ERROR STATES
