@@ -302,8 +302,8 @@ public:
     };
 
     EkfImu(
-        double process_noise1, double process_noise2, double measure_noise, double lambda = 0.9996f,
-        double lpf = 0.0f)
+        double process_noise1, double process_noise2, double measure_noise, double lambda = 1.0f,
+        double lpf = 0.01f)
         : kf_(6, 0, 3)
         , q1_(process_noise1)
         , q2_(process_noise2)
