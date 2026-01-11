@@ -166,7 +166,7 @@ public:
     double max_torque() const { return max_torque_; } // MAY BE UNUSED
     double temperature() const { return temperature_; }
     double mos_temperature() const { return mos_temperature_; }
-    int last_raw_angle() const { return last_raw_angle_; }
+    double last_raw_angle() const { return last_raw_angle_; }
     DmMotorErrorMsg last_error_msg() const { return last_error_msg_; }
 
 private:
