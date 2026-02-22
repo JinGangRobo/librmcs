@@ -5,9 +5,11 @@
 #include <atomic>
 #include <bit>
 #include <chrono>
+#include <cstdint>
 #include <stdexcept>
 
 #include <libusb.h>
+#include <sys/types.h>
 
 #include "../utility/cross_os.hpp"
 #include "../utility/logging.hpp"
@@ -468,11 +470,17 @@ private:
     static_assert(sizeof(ImuField) == 7);
 
     PACKED_STRUCT(GPIOHeader {
-        uint8_t field_id : 4;
+        uint8_t field_id  : 4;
         uint8_t gpio_id   : 2;
         uint8_t gpio_data : 2;
     });
     static_assert(sizeof(GPIOHeader) == 1);
+
+    PACKED_STRUCT(BuzzerField {
+        uint8_t field_id    : 8;
+        uint8_t buzzer_data : 8;
+    });
+    static_assert(sizeof(BuzzerField) == 2);
 
     template <typename Functor>
     struct FinalAction {
@@ -608,6 +616,10 @@ public:
         return add_uart_transmission(DownwardId::UART3, uart_data, uart_data_length);
     }
 
+    bool add_buzzer_transmission(uint8_t buzzer_data) {
+        return add_buzzer_transmission_impl(buzzer_data);
+    }
+
     bool trigger_transmission() {
         auto front = free_transfers_.front();
         if (!front || (*front)->length <= 1)
@@ -652,6 +664,19 @@ private:
         // Write CAN data
         std::memcpy(buffer, &can_data, can_data_length);
         buffer += can_data_length;
+
+        return true;
+    }
+
+    bool add_buzzer_transmission_impl(uint8_t buzzer_data) {
+        std::byte* buffer = try_fetch_buffer(sizeof(BuzzerField));
+        if (!buffer)
+            return false;
+
+        auto& field = *new (buffer) BuzzerField{};
+        buffer += sizeof(BuzzerField);
+        field.field_id = static_cast<uint8_t>(DownwardId::BUZZER);
+        field.buzzer_data = buzzer_data;
 
         return true;
     }
