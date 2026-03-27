@@ -23,20 +23,14 @@ public:
             current_score_continuous_ = score;
         } else {
             current_score_once_ = score;
-            current_progress_++;
+            current_progress_ = 0;
+            reseted_ = false;
         }
     }
 
-    void remove_score(Mode mode) {
-        set_score({Tone::OFF, Tone::OFF, Tone::OFF, 0}, mode);
-        current_progress_ = 0;
-    }
-
-    void update() {
-        if (std::bit_cast<uint32_t>(current_score_continuous_)) {
-            current_progress_++;
-        }
-        if (current_progress_ > 254) {
+    void update_status() {
+        current_progress_++;
+        if (current_progress_ > 2003) {
             current_progress_ = 0;
         }
     }
@@ -45,12 +39,11 @@ public:
         BuzzerScoreMsg msg;
         BuzzerScore score_to_use;
 
-        if (std::bit_cast<uint32_t>(current_score_once_)) {
-            if (!reseted_) {
+        if (std::bit_cast<uint32_t>(current_score_once_) && !reseted_) {
+            score_to_use = current_score_once_;
+            if (current_progress_ >= 2003) {
                 reseted_ = true;
-                return 0;
-            } else
-                score_to_use = current_score_once_;
+            }
         } else {
             score_to_use = current_score_continuous_;
         }
@@ -66,7 +59,7 @@ public:
 private:
     BuzzerScore current_score_continuous_;
     BuzzerScore current_score_once_;
-    uint8_t current_progress_;
+    uint16_t current_progress_;
 
     bool reseted_ = false;
 
